@@ -2,10 +2,6 @@ using System;
 using System.Drawing;
 using TradingPlatform.BusinessLayer;
 
-/// <summary>
-/// SMA/EMA Cross Indicator
-/// Plots one SMA and one EMA with configurable periods and colours.
-/// </summary>
 public class SmaEmaCross : Indicator
 {
     [InputParameter("SMA Period", 0, 1, 999, 1, 0)]
@@ -23,16 +19,21 @@ public class SmaEmaCross : Indicator
     [InputParameter("Line Width", 4, 1, 5, 1, 0)]
     public int LineWidth = 2;
 
+    [InputParameter("Show Cross Markers", 5)]
+    public bool ShowCrossMarkers = true;
+
     private Indicator sma;
     private Indicator ema;
 
+    private double prevSma = double.NaN;
+    private double prevEma = double.NaN;
+
     public override string ShortName => $"SMA/EMA Cross ({SmaPeriod}/{EmaPeriod})";
 
-    public SmaEmaCross()
-        : base()
+    public SmaEmaCross() : base()
     {
         Name = "SMA/EMA Cross";
-        Description = "Plots an SMA and an EMA. Useful for identifying crossover signals.";
+        Description = "Plots an SMA and an EMA with crossover markers.";
         SeparateWindow = false;
 
         AddLineSeries("SMA", Color.DodgerBlue, 2, LineStyle.Solid);
@@ -47,7 +48,6 @@ public class SmaEmaCross : Indicator
         AddIndicator(sma);
         AddIndicator(ema);
 
-        // Apply user colour choices
         LinesSeries[0].Color = SmaColor;
         LinesSeries[0].Width = LineWidth;
         LinesSeries[1].Color = EmaColor;
@@ -59,7 +59,36 @@ public class SmaEmaCross : Indicator
         if (Count < Math.Max(SmaPeriod, EmaPeriod))
             return;
 
-        SetValue(sma.GetValue(), 0);
-        SetValue(ema.GetValue(), 1);
+        double currentSma = sma.GetValue();
+        double currentEma = ema.GetValue();
+
+        SetValue(currentSma, 0);
+        SetValue(currentEma, 1);
+
+        if (!ShowCrossMarkers || Count < 2)
+        {
+            prevSma = currentSma;
+            prevEma = currentEma;
+            return;
+        }
+
+        if (!double.IsNaN(prevSma) && !double.IsNaN(prevEma))
+        {
+            // EMA is usually the faster one (shorter period)
+            bool emaCrossedAbove = prevEma <= prevSma && currentEma > currentSma;
+            bool emaCrossedBelow = prevEma >= prevSma && currentEma < currentSma;
+
+            if (emaCrossedAbove)
+            {
+                LinesSeries[1].SetMarker(0, new IndicatorLineMarker(Color.LimeGreen, IndicatorLineMarkerIconType.UpArrow));   // on EMA line
+            }
+            else if (emaCrossedBelow)
+            {
+                LinesSeries[1].SetMarker(0, new IndicatorLineMarker(Color.Red, IndicatorLineMarkerIconType.DownArrow));     // on EMA line
+            }
+        }
+
+        prevSma = currentSma;
+        prevEma = currentEma;
     }
 }
